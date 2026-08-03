@@ -1,0 +1,55 @@
+# Expo
+.expo/
+.expo-shared/
+dist/
+web-build/
+
+# Dependências
+node_modules/
+
+# Nativo gerado pelo prebuild (gerado automaticamente, não deve ir pro git)
+/android
+/ios
+
+# Metro
+.metro-health-check*
+
+# Variáveis de ambiente e chaves sensíveis (AdMob IDs reais, etc.)
+.env
+.env.local
+.env.*.local
+
+# macOS
+.DS_Store
+*.pem
+
+# Logs
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+*.log
+
+# Build / Release
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.orig.*
+*.aab
+*.apk
+*.ipa
+
+# TypeScript
+*.tsbuildinfo
+
+# Testes
+coverage/
+
+# Editor
+.vscode/
+.idea/
+
+# Banco de dados local (não faz sentido versionar dados de teste)
+*.db
+*.sqlite
