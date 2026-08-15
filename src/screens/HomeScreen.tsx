@@ -2,21 +2,19 @@ import React, { useCallback, useState } from 'react';
 import { View, Text, FlatList, Pressable, StyleSheet, Alert } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import MedicationCard from '../components/MedicationCard';
-import { listarMedicamentos, removerMedicamento } from '../db/database';
+import { listarMedicamentos, removerMedicamento, contarTomadasPorStatus } from '../db/database';
 import { cancelarAlarmesDoMedicamento } from '../services/notifications';
+import { listarCuidadores } from '../services/sync';
 import { BannerAd, BannerAdSize, BANNER_ID } from '../services/ads';
-import { Medicamento } from '../types';
+import { Medicamento, CuidadorVinculado } from '../types';
 
 function proximoHorarioTexto(m: Medicamento): string {
   const agora = new Date();
   const horaAtual = agora.getHours() * 60 + agora.getMinutes();
-  const emMinutos = m.horarios
-    .map((h) => {
-      const [hh, mm] = h.split(':').map(Number);
-      return hh * 60 + mm;
-    })
-    .sort((a, b) => a - b);
-
+  const emMinutos = m.horarios.map((h) => {
+    const [hh, mm] = h.split(':').map(Number);
+    return hh * 60 + mm;
+  }).sort((a, b) => a - b);
   const proximo = emMinutos.find((min) => min >= horaAtual) ?? emMinutos[0];
   const hh = String(Math.floor(proximo / 60)).padStart(2, '0');
   const mm = String(proximo % 60).padStart(2, '0');
@@ -25,10 +23,15 @@ function proximoHorarioTexto(m: Medicamento): string {
 
 export default function HomeScreen({ navigation }: any) {
   const [medicamentos, setMedicamentos] = useState<Medicamento[]>([]);
+  const [resumo, setResumo] = useState({ tomado: 0, perdido: 0, adiado: 0 });
+  const [cuidadores, setCuidadores] = useState<CuidadorVinculado[]>([]);
 
   useFocusEffect(
     useCallback(() => {
       setMedicamentos(listarMedicamentos());
+      const stats = contarTomadasPorStatus();
+      setResumo({ tomado: stats.tomado || 0, perdido: stats.perdido || 0, adiado: stats.adiado || 0 });
+      listarCuidadores().then(setCuidadores);
     }, [])
   );
 
@@ -36,8 +39,7 @@ export default function HomeScreen({ navigation }: any) {
     Alert.alert('Remover remédio', `Deseja parar os lembretes de "${m.nome}"?`, [
       { text: 'Cancelar', style: 'cancel' },
       {
-        text: 'Remover',
-        style: 'destructive',
+        text: 'Remover', style: 'destructive',
         onPress: async () => {
           removerMedicamento(m.id);
           await cancelarAlarmesDoMedicamento(m.id);
@@ -47,13 +49,52 @@ export default function HomeScreen({ navigation }: any) {
     ]);
   }
 
+  const taxaAdesao = resumo.tomado + resumo.perdido + resumo.adiado > 0
+    ? Math.round((resumo.tomado / (resumo.tomado + resumo.perdido + resumo.adiado)) * 100)
+    : 0;
+
   return (
     <View style={styles.container}>
       <Text style={styles.titulo}>Meus Remédios</Text>
 
+      {/* Card de cuidadores */}
+      {cuidadores.length > 0 && (
+        <Pressable style={styles.cuidadorCard} onPress={() => navigation.navigate('VincularCuidador')}>
+          <Text style={styles.cuidadorTexto}>
+            👨‍⚕️ {cuidadores.length} cuidador{cuidadores.length > 1 ? 'es' : ''} vinculado{cuidadores.length > 1 ? 's' : ''}
+          </Text>
+          <Text style={styles.cuidadorSub}>Toque para gerenciar →</Text>
+        </Pressable>
+      )}
+
+      {/* Card de resumo */}
+      <Pressable style={styles.resumoCard} onPress={() => navigation.navigate('RelatorioAdesao')}>
+        <Text style={styles.resumoTitulo}>📊 Sua Adesão ao Tratamento</Text>
+        <View style={styles.resumoLinha}>
+          <View style={styles.resumoItem}>
+            <Text style={[styles.resumoNumero, { color: '#2ECC71' }]}>{resumo.tomado}</Text>
+            <Text style={styles.resumoLabel}>Tomados</Text>
+          </View>
+          <View style={styles.resumoItem}>
+            <Text style={[styles.resumoNumero, { color: '#F39C12' }]}>{resumo.adiado}</Text>
+            <Text style={styles.resumoLabel}>Adiados</Text>
+          </View>
+          <View style={styles.resumoItem}>
+            <Text style={[styles.resumoNumero, { color: '#E74C3C' }]}>{resumo.perdido}</Text>
+            <Text style={styles.resumoLabel}>Perdidos</Text>
+          </View>
+          <View style={styles.resumoItem}>
+            <Text style={[styles.resumoNumero, { color: '#1E3A5F' }]}>{taxaAdesao}%</Text>
+            <Text style={styles.resumoLabel}>Taxa</Text>
+          </View>
+        </View>
+        <Text style={styles.resumoDica}>Toque para ver relatório completo →</Text>
+      </Pressable>
+
       {medicamentos.length === 0 ? (
         <View style={styles.vazio}>
-          <Text style={styles.vazioTexto}>Nenhum remédio cadastrado ainda.{'\n'}Toque no botão abaixo para começar.</Text>
+          <Text style={styles.vazioTexto}>Nenhum remédio cadastrado ainda.{"
+"}Toque no botão abaixo para começar.</Text>
         </View>
       ) : (
         <FlatList
@@ -65,6 +106,7 @@ export default function HomeScreen({ navigation }: any) {
               proximoHorario={proximoHorarioTexto(item)}
               onPress={() => navigation.navigate('AddMedicamento', { medicamento: item })}
               onExcluir={() => confirmarExclusao(item)}
+              onVerHistorico={() => navigation.navigate('HistoricoMedicamento', { medicamentoId: item.id })}
             />
           )}
           contentContainerStyle={{ paddingBottom: 20 }}
@@ -76,7 +118,7 @@ export default function HomeScreen({ navigation }: any) {
       </Pressable>
 
       <View style={styles.bannerContainer}>
-        <BannerAd unitId={BANNER_ID} size={BannerAdSize.BANNER} />
+        <BannerAd unitId={BANNER_ID} size={BannerAdSize.ANCHORED_ADAPTIVE_BANNER} />
       </View>
     </View>
   );
@@ -85,14 +127,26 @@ export default function HomeScreen({ navigation }: any) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F4F7FB', padding: 20 },
   titulo: { fontSize: 30, fontWeight: '900', color: '#1E3A5F', marginBottom: 16, marginTop: 10 },
+  cuidadorCard: {
+    backgroundColor: '#118AB2', borderRadius: 14, padding: 14, marginBottom: 14,
+  },
+  cuidadorTexto: { fontSize: 16, fontWeight: '700', color: '#FFFFFF' },
+  cuidadorSub: { fontSize: 13, color: '#DCE6F2', marginTop: 2 },
+  resumoCard: {
+    backgroundColor: '#FFFFFF', borderRadius: 18, padding: 16, marginBottom: 16,
+    shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 8, elevation: 2,
+  },
+  resumoTitulo: { fontSize: 16, fontWeight: '700', color: '#1E3A5F', marginBottom: 10 },
+  resumoLinha: { flexDirection: 'row', justifyContent: 'space-around' },
+  resumoItem: { alignItems: 'center' },
+  resumoNumero: { fontSize: 22, fontWeight: '800' },
+  resumoLabel: { fontSize: 12, color: '#5B6B7C', marginTop: 2 },
+  resumoDica: { fontSize: 12, color: '#118AB2', marginTop: 10, textAlign: 'center' },
   vazio: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   vazioTexto: { fontSize: 18, color: '#5B6B7C', textAlign: 'center', lineHeight: 26 },
   botaoAdicionar: {
-    backgroundColor: '#1E3A5F',
-    paddingVertical: 18,
-    borderRadius: 18,
-    alignItems: 'center',
-    marginBottom: 10,
+    backgroundColor: '#1E3A5F', paddingVertical: 18, borderRadius: 18,
+    alignItems: 'center', marginBottom: 10,
   },
   botaoAdicionarTexto: { color: '#FFFFFF', fontSize: 20, fontWeight: '800' },
   bannerContainer: { alignItems: 'center' },

@@ -5,6 +5,7 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
+    "scheme": "medalerta",
     "userInterfaceStyle": "automatic",
     "splash": {
       "backgroundColor": "#1E3A5F"
@@ -38,6 +39,7 @@
     },
     "plugins": [
       "expo-dev-client",
+      "expo-notifications",
       [
         "react-native-google-mobile-ads",
         {

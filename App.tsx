@@ -1,99 +1,236 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { StatusBar } from 'expo-status-bar';
-import { Modal, View } from 'react-native';
+import { Modal, View, Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Notifications from 'expo-notifications';
+import * as Linking from 'expo-linking';
 
+import { AppModeProvider, useAppMode } from './src/context/AppModeContext';
+
+// Screens
+import ModeSelectScreen from './src/screens/ModeSelectScreen';
 import HomeScreen from './src/screens/HomeScreen';
 import AddMedicationScreen from './src/screens/AddMedicationScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 import AlarmScreen from './src/screens/AlarmScreen';
+import MedicationHistoryScreen from './src/screens/MedicationHistoryScreen';
+import AdherenceReportScreen from './src/screens/AdherenceReportScreen';
+import PatientLinkScreen from './src/screens/PatientLinkScreen';
+import CaregiverDashboard from './src/screens/CaregiverDashboard';
+import CaregiverLinkScreen from './src/screens/CaregiverLinkScreen';
 import OnboardingScreen from './src/screens/OnboardingScreen';
 
-import { iniciarBanco, listarMedicamentos } from './src/db/database';
-import { configurarCanalDeAlarme, registrarListenerDeAlarme } from './src/services/notifications';
+// Services
+import { iniciarBanco } from './src/db/database';
+import {
+  configurarCanalDeAlarme,
+  registrarListenerDeAlarme,
+  registrarBackgroundHandler,
+} from './src/services/notifications';
+import {
+  configurarNotificacoesPush,
+  registrarListenersPush,
+  obterExpoPushToken,
+} from './src/services/pushNotifications';
+import {
+  salvarCuidador,
+  salvarPaciente,
+  atualizarStatusPaciente,
+  listarPacientes,
+} from './src/services/sync';
 import { iniciarAds } from './src/services/ads';
-import { Medicamento } from './src/types';
+
+import { Medicamento, SyncPayload } from './src/types';
 
 const Stack = createNativeStackNavigator();
 const CHAVE_ONBOARDING = '@medalerta:onboarding_concluido';
 
-export default function App() {
+// ========== NAVEGAÇÃO POR MODO ==========
+
+function PacienteNavigator() {
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="Home" component={HomeScreen} />
+      <Stack.Screen name="AddMedicamento" component={AddMedicationScreen} />
+      <Stack.Screen name="Configuracoes" component={SettingsScreen} />
+      <Stack.Screen name="HistoricoMedicamento" component={MedicationHistoryScreen} />
+      <Stack.Screen name="RelatorioAdesao" component={AdherenceReportScreen} />
+      <Stack.Screen name="VincularCuidador" component={PatientLinkScreen} />
+    </Stack.Navigator>
+  );
+}
+
+function CuidadorNavigator() {
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="Dashboard" component={CaregiverDashboard} />
+      <Stack.Screen name="VincularPaciente" component={CaregiverLinkScreen} />
+      <Stack.Screen name="Configuracoes" component={SettingsScreen} />
+    </Stack.Navigator>
+  );
+}
+
+// ========== APP ROOT ==========
+
+function AppRoot() {
+  const { mode, setMode, isLoading } = useAppMode();
   const [alarmeAtivo, setAlarmeAtivo] = useState<{
     medicamento: Medicamento;
     notificationId: string;
     horarioPrevisto: string;
   } | null>(null);
-
-  // null = ainda carregando, true = já viu, false = precisa ver agora
   const [onboardingConcluido, setOnboardingConcluido] = useState<boolean | null>(null);
 
   useEffect(() => {
+    // Inicializações comuns
     iniciarBanco();
     configurarCanalDeAlarme();
+    configurarNotificacoesPush();
     iniciarAds();
+    obterExpoPushToken(); // pré-carrega o token
 
     AsyncStorage.getItem(CHAVE_ONBOARDING).then((valor) => {
       setOnboardingConcluido(valor === 'true');
     });
 
-    const unsubscribe = registrarListenerDeAlarme((medicamentoId, horarioPrevisto) => {
-      const medicamento = listarMedicamentos().find((m) => m.id === medicamentoId);
-      if (medicamento) {
-        setAlarmeAtivo({
-          medicamento,
-          notificationId: `${medicamentoId}-${horarioPrevisto}`,
-          horarioPrevisto,
-        });
+    // Listener alarme local (notifee) - modo paciente
+    const unsubscribeForeground = registrarListenerDeAlarme(
+      (medicamentoId, horarioPrevisto, notificationId) => {
+        abrirAlarme(medicamentoId, horarioPrevisto, notificationId);
       }
+    );
+
+    registrarBackgroundHandler((medicamentoId, horarioPrevisto, notificationId) => {
+      abrirAlarme(medicamentoId, horarioPrevisto, notificationId);
     });
 
-    return unsubscribe;
+    // Listener push notifications (expo-notifications) - modo cuidador
+    const unsubscribePush = registrarListenersPush((data: SyncPayload) => {
+      handlePushRecebido(data);
+    });
+
+    // Deep link handler
+    const checkDeepLink = async () => {
+      const url = await Linking.getInitialURL();
+      if (url) handleDeepLink(url);
+    };
+    checkDeepLink();
+
+    const deepLinkSubscription = Linking.addEventListener('url', ({ url }) => {
+      handleDeepLink(url);
+    });
+
+    return () => {
+      unsubscribeForeground();
+      unsubscribePush();
+      deepLinkSubscription.remove();
+    };
   }, []);
+
+  function abrirAlarme(medicamentoId: string, horarioPrevisto: string, notificationId: string) {
+    const { buscarMedicamentoPorId } = require('./src/db/database');
+    const medicamento = buscarMedicamentoPorId(medicamentoId);
+    if (medicamento) {
+      setAlarmeAtivo({ medicamento, notificationId, horarioPrevisto });
+    }
+  }
+
+  async function handlePushRecebido(data: SyncPayload) {
+    if (!data || !data.tipo) return;
+
+    if (data.tipo === 'vinculacao' && data.cuidadorNome && data.cuidadorToken) {
+      // Paciente recebeu confirmação do cuidador
+      await salvarCuidador({
+        id: data.cuidadorId || `cuid-${Date.now()}`,
+        nome: data.cuidadorNome,
+        expoPushToken: data.cuidadorToken,
+        vinculadoEm: new Date().toISOString(),
+      });
+      Alert.alert('✅ Cuidador vinculado!', `${data.cuidadorNome} agora acompanha seus remédios.`);
+    }
+
+    if (data.tipo === 'status' || data.tipo === 'alerta') {
+      // Cuidador recebeu atualização do paciente
+      const pacientes = await listarPacientes();
+      const paciente = pacientes.find((p) => p.expoPushToken === data.pacienteId); // simplificado
+      if (paciente) {
+        await atualizarStatusPaciente(
+          paciente.id,
+          data.status || 'pendente',
+          data.medicamentoNome
+        );
+      }
+    }
+  }
+
+  function handleDeepLink(url: string) {
+    const { path, queryParams } = Linking.parse(url);
+    if (path === 'vincular' && queryParams?.token) {
+      // Se o usuário ainda não escolheu modo, sugere cuidador
+      if (!mode) {
+        setMode('cuidador');
+      }
+    }
+  }
 
   async function concluirOnboarding() {
     await AsyncStorage.setItem(CHAVE_ONBOARDING, 'true');
     setOnboardingConcluido(true);
   }
 
-  // Enquanto verifica o AsyncStorage, não mostra nada (evita "piscar" a tela)
-  if (onboardingConcluido === null) {
-    return <View style={{ flex: 1, backgroundColor: '#1E3A5F' }} />;
+  if (isLoading || onboardingConcluido === null) {
+    return <View style={{ flex: 1, backgroundColor: '#F4F7FB' }} />;
   }
 
   if (!onboardingConcluido) {
     return (
       <>
+        <StatusBar style="dark" />
         <OnboardingScreen onConcluir={concluirOnboarding} />
-        <StatusBar style="light" />
+      </>
+    );
+  }
+
+  // Se não escolheu modo, mostra tela de seleção
+  if (!mode) {
+    return (
+      <>
+        <StatusBar style="dark" />
+        <ModeSelectScreen />
       </>
     );
   }
 
   return (
     <>
+      <StatusBar style="dark" />
       <NavigationContainer>
-        <Stack.Navigator screenOptions={{ headerStyle: { backgroundColor: '#1E3A5F' }, headerTintColor: '#FFF' }}>
-          <Stack.Screen name="Home" component={HomeScreen} options={{ title: 'MedAlerta' }} />
-          <Stack.Screen name="AddMedicamento" component={AddMedicationScreen} options={{ title: 'Remédio' }} />
-          <Stack.Screen name="Configuracoes" component={SettingsScreen} options={{ title: 'Configurações' }} />
-        </Stack.Navigator>
+        {mode === 'paciente' ? <PacienteNavigator /> : <CuidadorNavigator />}
       </NavigationContainer>
 
-      {/* A tela de alarme abre por cima de tudo, mesmo com o app em outra tela */}
-      <Modal visible={!!alarmeAtivo} animationType="fade">
-        {alarmeAtivo && (
-          <AlarmScreen
-            medicamento={alarmeAtivo.medicamento}
-            notificationId={alarmeAtivo.notificationId}
-            horarioPrevisto={alarmeAtivo.horarioPrevisto}
-            onFechar={() => setAlarmeAtivo(null)}
-          />
-        )}
-      </Modal>
-
-      <StatusBar style="light" />
+      {/* Alarme em tela cheia - só no modo paciente */}
+      {mode === 'paciente' && (
+        <Modal visible={!!alarmeAtivo} animationType="slide" presentationStyle="fullScreen">
+          {alarmeAtivo && (
+            <AlarmScreen
+              medicamento={alarmeAtivo.medicamento}
+              notificationId={alarmeAtivo.notificationId}
+              horarioPrevisto={alarmeAtivo.horarioPrevisto}
+              onFechar={() => setAlarmeAtivo(null)}
+            />
+          )}
+        </Modal>
+      )}
     </>
+  );
+}
+
+export default function App() {
+  return (
+    <AppModeProvider>
+      <AppRoot />
+    </AppModeProvider>
   );
 }
