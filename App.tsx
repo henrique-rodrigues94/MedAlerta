@@ -18,6 +18,7 @@ import PatientLinkScreen from './src/screens/PatientLinkScreen';
 import CaregiverDashboard from './src/screens/CaregiverDashboard';
 import CaregiverLinkScreen from './src/screens/CaregiverLinkScreen';
 import OnboardingScreen from './src/screens/OnboardingScreen';
+import StockScreen from './src/screens/StockScreen';
 import { iniciarBanco } from './src/db/database';
 import { configurarCanalDeAlarme, registrarListenerDeAlarme, registrarBackgroundHandler } from './src/services/notifications';
 import { configurarNotificacoesPush, registrarListenersPush, obterExpoPushToken } from './src/services/pushNotifications';
@@ -26,7 +27,7 @@ import { iniciarAds } from './src/services/ads';
 import { Medicamento, SyncPayload } from './src/types';
 const Stack = createNativeStackNavigator();
 const CHAVE_ONBOARDING = '@medalerta:onboarding_concluido';
-function PacienteNavigator() { return <Stack.Navigator screenOptions={{headerShown:false}}><Stack.Screen name="Home" component={HomeScreen}/><Stack.Screen name="AddMedicamento" component={AddMedicationScreen}/><Stack.Screen name="Configuracoes" component={SettingsScreen}/><Stack.Screen name="HistoricoMedicamento" component={MedicationHistoryScreen}/><Stack.Screen name="RelatorioAdesao" component={AdherenceReportScreen}/><Stack.Screen name="VincularCuidador" component={PatientLinkScreen}/></Stack.Navigator>; }
+function PacienteNavigator() { return <Stack.Navigator screenOptions={{headerShown:false}}><Stack.Screen name="Home" component={HomeScreen}/><Stack.Screen name="AddMedicamento" component={AddMedicationScreen}/><Stack.Screen name="Configuracoes" component={SettingsScreen}/><Stack.Screen name="HistoricoMedicamento" component={MedicationHistoryScreen}/><Stack.Screen name="RelatorioAdesao" component={AdherenceReportScreen}/><Stack.Screen name="VincularCuidador" component={PatientLinkScreen}/><Stack.Screen name="Estoque" component={StockScreen}/></Stack.Navigator>; }
 function CuidadorNavigator() { return <Stack.Navigator screenOptions={{headerShown:false}}><Stack.Screen name="Dashboard" component={CaregiverDashboard}/><Stack.Screen name="VincularPaciente" component={CaregiverLinkScreen}/><Stack.Screen name="Configuracoes" component={SettingsScreen}/></Stack.Navigator>; }
 function AppRoot() {
  const {mode,setMode,isLoading}=useAppMode(); const [alarmeAtivo,setAlarmeAtivo]=useState<{medicamento:Medicamento;notificationId:string;horarioPrevisto:string}|null>(null); const [onboardingConcluido,setOnboardingConcluido]=useState<boolean|null>(null);
