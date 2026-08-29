@@ -2,7 +2,7 @@
   "expo": {
     "name": "MedAlerta",
     "slug": "medalerta",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "scheme": "medalerta",
@@ -12,6 +12,8 @@
     },
     "android": {
       "package": "com.medalerta.app",
+      "versionCode": 2,
+      "minSdkVersion": 24,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#1E3A5F"
@@ -28,6 +30,7 @@
     },
     "ios": {
       "bundleIdentifier": "com.medalerta.app",
+      "buildNumber": "2",
       "infoPlist": {
         "NSCameraUsageDescription": "Usamos a câmera para você tirar foto da caixa/cartela do remédio.",
         "NSPhotoLibraryUsageDescription": "Usamos a galeria para você escolher a foto do remédio.",
@@ -50,7 +53,9 @@
       [
         "expo-image-picker",
         {
-          "cameraPermission": "Usamos a câmera para fotografar o remédio."
+          "cameraPermission": "Usamos a câmera para fotografar o remédio.",
+          "photosPermission": "Usamos suas fotos para você escolher uma imagem do remédio.",
+          "microphonePermission": false
         }
       ]
     ]
