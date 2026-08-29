@@ -5,149 +5,18 @@ import MedicationCard from '../components/MedicationCard';
 import { listarMedicamentos, removerMedicamento, contarTomadasPorStatus } from '../db/database';
 import { cancelarAlarmesDoMedicamento } from '../services/notifications';
 import { listarCuidadores } from '../services/sync';
+import { listarProjecoes } from '../services/stockProjection';
 import { BannerAd, BannerAdSize, BANNER_ID } from '../services/ads';
-import { Medicamento, CuidadorVinculado } from '../types';
-
-function proximoHorarioTexto(m: Medicamento): string {
-  const agora = new Date();
-  const horaAtual = agora.getHours() * 60 + agora.getMinutes();
-  const emMinutos = m.horarios.map((h) => {
-    const [hh, mm] = h.split(':').map(Number);
-    return hh * 60 + mm;
-  }).sort((a, b) => a - b);
-  const proximo = emMinutos.find((min) => min >= horaAtual) ?? emMinutos[0];
-  const hh = String(Math.floor(proximo / 60)).padStart(2, '0');
-  const mm = String(proximo % 60).padStart(2, '0');
-  return `${hh}:${mm}`;
+import { Medicamento, CuidadorVinculado, ProjecaoEstoque } from '../types';
+import { useAppMode } from '../context/AppModeContext';
+function proximoHorarioTexto(m: Medicamento): string { const agora=new Date();const atual=agora.getHours()*60+agora.getMinutes();const mins=m.horarios.map(h=>{const[a,b]=h.split(':').map(Number);return a*60+b}).sort((a,b)=>a-b);const p=mins.find(x=>x>=atual)??mins[0]??0;return `${String(Math.floor(p/60)).padStart(2,'0')}:${String(p%60).padStart(2,'0')}`; }
+export default function HomeScreen({navigation}:any){const[medicamentos,setMedicamentos]=useState<Medicamento[]>([]);const[resumo,setResumo]=useState({tomado:0,perdido:0,adiado:0});const[cuidadores,setCuidadores]=useState<CuidadorVinculado[]>([]);const[estoqueCritico,setEstoqueCritico]=useState<ProjecaoEstoque[]>([]);const{modoFacil}=useAppMode();useFocusEffect(useCallback(()=>{setMedicamentos(listarMedicamentos());const stats=contarTomadasPorStatus();setResumo({tomado:stats.tomado||0,perdido:stats.perdido||0,adiado:stats.adiado||0});listarCuidadores().then(setCuidadores);setEstoqueCritico(listarProjecoes().filter(p=>p.status==='atencao'||p.status==='critico'||p.status==='sem_estoque'));},[]));
+ function confirmarExclusao(m:Medicamento){Alert.alert('Remover remédio',`Deseja parar os lembretes de "${m.nome}"?`,[{text:'Cancelar',style:'cancel'},{text:'Remover',style:'destructive',onPress:async()=>{removerMedicamento(m.id);await cancelarAlarmesDoMedicamento(m.id);setMedicamentos(listarMedicamentos());}}]);}
+ const total=resumo.tomado+resumo.perdido+resumo.adiado;const taxa=total?Math.round(resumo.tomado/total*100):0;
+ return <View style={[styles.container,modoFacil&&styles.containerFacil]}><Text style={[styles.titulo,modoFacil&&styles.tituloFacil]}>Meus Remédios</Text>{cuidadores.length>0&&<Pressable style={styles.cuidadorCard} onPress={()=>navigation.navigate('VincularCuidador')}><Text style={styles.cuidadorTexto}>👨‍⚕️ {cuidadores.length} cuidador{cuidadores.length>1?'es':''} vinculado{cuidadores.length>1?'s':''}</Text></Pressable>}
+ <Pressable style={styles.resumoCard} onPress={()=>navigation.navigate('RelatorioAdesao')} accessibilityRole="button"><Text style={[styles.resumoTitulo,modoFacil&&styles.facilText]}>📊 Adesão hoje</Text><View style={styles.resumoLinha}><View style={styles.resumoItem}><Text style={[styles.resumoNumero,modoFacil&&styles.facilNumero]}>{taxa}%</Text><Text style={styles.resumoLabel}>Adesão</Text></View><View style={styles.resumoItem}><Text style={styles.resumoNumero}>{resumo.tomado}</Text><Text style={styles.resumoLabel}>Tomados</Text></View><View style={styles.resumoItem}><Text style={styles.resumoNumero}>{resumo.adiado}</Text><Text style={styles.resumoLabel}>Adiados</Text></View><View style={styles.resumoItem}><Text style={styles.resumoNumero}>{resumo.perdido}</Text><Text style={styles.resumoLabel}>Perdidos</Text></View></View></Pressable>
+ {estoqueCritico.length>0&&<Pressable style={styles.estoqueAlerta} onPress={()=>navigation.navigate('Estoque')} accessibilityRole="button"><Text style={[styles.alertaTitulo,modoFacil&&styles.facilText]}>📦 Atenção ao estoque</Text><Text style={styles.alertaTexto}>{estoqueCritico.length===1?'1 medicamento precisa de atenção':`${estoqueCritico.length} medicamentos precisam de atenção`}</Text><Text style={styles.alertaLink}>Ver projeções →</Text></Pressable>}
+ {medicamentos.length===0?<View style={styles.vazio}><Text style={[styles.vazioTexto,modoFacil&&styles.facilText]}>Nenhum remédio cadastrado ainda.{"\n"}Toque abaixo para começar.</Text></View>:<FlatList data={medicamentos}keyExtractor={m=>m.id}renderItem={({item})=><MedicationCard medicamento={item}proximoHorario={proximoHorarioTexto(item)}onPress={()=>navigation.navigate('AddMedicamento',{medicamento:item})}onExcluir={()=>confirmarExclusao(item)}onVerHistorico={()=>navigation.navigate('HistoricoMedicamento',{medicamentoId:item.id})}/>}contentContainerStyle={{paddingBottom:20}}/>}
+ <Pressable style={[styles.botaoAdicionar,modoFacil&&styles.botaoFacil]} onPress={()=>navigation.navigate('AddMedicamento')} accessibilityRole="button"><Text style={styles.botaoAdicionarTexto}>+ Adicionar Remédio</Text></Pressable><View style={styles.bannerContainer}><BannerAd unitId={BANNER_ID} size={BannerAdSize.ANCHORED_ADAPTIVE_BANNER}/></View></View>;
 }
-
-export default function HomeScreen({ navigation }: any) {
-  const [medicamentos, setMedicamentos] = useState<Medicamento[]>([]);
-  const [resumo, setResumo] = useState({ tomado: 0, perdido: 0, adiado: 0 });
-  const [cuidadores, setCuidadores] = useState<CuidadorVinculado[]>([]);
-
-  useFocusEffect(
-    useCallback(() => {
-      setMedicamentos(listarMedicamentos());
-      const stats = contarTomadasPorStatus();
-      setResumo({ tomado: stats.tomado || 0, perdido: stats.perdido || 0, adiado: stats.adiado || 0 });
-      listarCuidadores().then(setCuidadores);
-    }, [])
-  );
-
-  function confirmarExclusao(m: Medicamento) {
-    Alert.alert('Remover remédio', `Deseja parar os lembretes de "${m.nome}"?`, [
-      { text: 'Cancelar', style: 'cancel' },
-      {
-        text: 'Remover', style: 'destructive',
-        onPress: async () => {
-          removerMedicamento(m.id);
-          await cancelarAlarmesDoMedicamento(m.id);
-          setMedicamentos(listarMedicamentos());
-        },
-      },
-    ]);
-  }
-
-  const taxaAdesao = resumo.tomado + resumo.perdido + resumo.adiado > 0
-    ? Math.round((resumo.tomado / (resumo.tomado + resumo.perdido + resumo.adiado)) * 100)
-    : 0;
-
-  return (
-    <View style={styles.container}>
-      <Text style={styles.titulo}>Meus Remédios</Text>
-
-      {/* Card de cuidadores */}
-      {cuidadores.length > 0 && (
-        <Pressable style={styles.cuidadorCard} onPress={() => navigation.navigate('VincularCuidador')}>
-          <Text style={styles.cuidadorTexto}>
-            👨‍⚕️ {cuidadores.length} cuidador{cuidadores.length > 1 ? 'es' : ''} vinculado{cuidadores.length > 1 ? 's' : ''}
-          </Text>
-          <Text style={styles.cuidadorSub}>Toque para gerenciar →</Text>
-        </Pressable>
-      )}
-
-      {/* Card de resumo */}
-      <Pressable style={styles.resumoCard} onPress={() => navigation.navigate('RelatorioAdesao')}>
-        <Text style={styles.resumoTitulo}>📊 Sua Adesão ao Tratamento</Text>
-        <View style={styles.resumoLinha}>
-          <View style={styles.resumoItem}>
-            <Text style={[styles.resumoNumero, { color: '#2ECC71' }]}>{resumo.tomado}</Text>
-            <Text style={styles.resumoLabel}>Tomados</Text>
-          </View>
-          <View style={styles.resumoItem}>
-            <Text style={[styles.resumoNumero, { color: '#F39C12' }]}>{resumo.adiado}</Text>
-            <Text style={styles.resumoLabel}>Adiados</Text>
-          </View>
-          <View style={styles.resumoItem}>
-            <Text style={[styles.resumoNumero, { color: '#E74C3C' }]}>{resumo.perdido}</Text>
-            <Text style={styles.resumoLabel}>Perdidos</Text>
-          </View>
-          <View style={styles.resumoItem}>
-            <Text style={[styles.resumoNumero, { color: '#1E3A5F' }]}>{taxaAdesao}%</Text>
-            <Text style={styles.resumoLabel}>Taxa</Text>
-          </View>
-        </View>
-        <Text style={styles.resumoDica}>Toque para ver relatório completo →</Text>
-      </Pressable>
-
-      {medicamentos.length === 0 ? (
-        <View style={styles.vazio}>
-          <Text style={styles.vazioTexto}>Nenhum remédio cadastrado ainda.{"
-"}Toque no botão abaixo para começar.</Text>
-        </View>
-      ) : (
-        <FlatList
-          data={medicamentos}
-          keyExtractor={(m) => m.id}
-          renderItem={({ item }) => (
-            <MedicationCard
-              medicamento={item}
-              proximoHorario={proximoHorarioTexto(item)}
-              onPress={() => navigation.navigate('AddMedicamento', { medicamento: item })}
-              onExcluir={() => confirmarExclusao(item)}
-              onVerHistorico={() => navigation.navigate('HistoricoMedicamento', { medicamentoId: item.id })}
-            />
-          )}
-          contentContainerStyle={{ paddingBottom: 20 }}
-        />
-      )}
-
-      <Pressable style={styles.botaoAdicionar} onPress={() => navigation.navigate('AddMedicamento')}>
-        <Text style={styles.botaoAdicionarTexto}>+ Adicionar Remédio</Text>
-      </Pressable>
-
-      <View style={styles.bannerContainer}>
-        <BannerAd unitId={BANNER_ID} size={BannerAdSize.ANCHORED_ADAPTIVE_BANNER} />
-      </View>
-    </View>
-  );
-}
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F4F7FB', padding: 20 },
-  titulo: { fontSize: 30, fontWeight: '900', color: '#1E3A5F', marginBottom: 16, marginTop: 10 },
-  cuidadorCard: {
-    backgroundColor: '#118AB2', borderRadius: 14, padding: 14, marginBottom: 14,
-  },
-  cuidadorTexto: { fontSize: 16, fontWeight: '700', color: '#FFFFFF' },
-  cuidadorSub: { fontSize: 13, color: '#DCE6F2', marginTop: 2 },
-  resumoCard: {
-    backgroundColor: '#FFFFFF', borderRadius: 18, padding: 16, marginBottom: 16,
-    shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 8, elevation: 2,
-  },
-  resumoTitulo: { fontSize: 16, fontWeight: '700', color: '#1E3A5F', marginBottom: 10 },
-  resumoLinha: { flexDirection: 'row', justifyContent: 'space-around' },
-  resumoItem: { alignItems: 'center' },
-  resumoNumero: { fontSize: 22, fontWeight: '800' },
-  resumoLabel: { fontSize: 12, color: '#5B6B7C', marginTop: 2 },
-  resumoDica: { fontSize: 12, color: '#118AB2', marginTop: 10, textAlign: 'center' },
-  vazio: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  vazioTexto: { fontSize: 18, color: '#5B6B7C', textAlign: 'center', lineHeight: 26 },
-  botaoAdicionar: {
-    backgroundColor: '#1E3A5F', paddingVertical: 18, borderRadius: 18,
-    alignItems: 'center', marginBottom: 10,
-  },
-  botaoAdicionarTexto: { color: '#FFFFFF', fontSize: 20, fontWeight: '800' },
-  bannerContainer: { alignItems: 'center' },
-});
+const styles=StyleSheet.create({container:{flex:1,backgroundColor:'#F4F7FB',padding:20},containerFacil:{padding:24},titulo:{fontSize:30,fontWeight:'900',color:'#1E3A5F',marginBottom:16,marginTop:10},tituloFacil:{fontSize:36},cuidadorCard:{backgroundColor:'#118AB2',borderRadius:14,padding:14,marginBottom:14},cuidadorTexto:{fontSize:18,fontWeight:'800',color:'#FFF'},resumoCard:{backgroundColor:'#FFF',borderRadius:18,padding:16,marginBottom:12,elevation:2},resumoTitulo:{fontSize:16,fontWeight:'700',color:'#1E3A5F',marginBottom:10},resumoLinha:{flexDirection:'row',justifyContent:'space-around'},resumoItem:{alignItems:'center'},resumoNumero:{fontSize:22,fontWeight:'800',color:'#1E3A5F'},resumoLabel:{fontSize:12,color:'#5B6B7C',marginTop:2},estoqueAlerta:{backgroundColor:'#FFF7E6',borderRadius:16,padding:15,marginBottom:12,borderWidth:1,borderColor:'#F39C12'},alertaTitulo:{fontSize:17,fontWeight:'800',color:'#7A4B00'},alertaTexto:{fontSize:14,color:'#5B6B7C',marginTop:4},alertaLink:{fontSize:14,color:'#118AB2',fontWeight:'800',marginTop:8},vazio:{flex:1,alignItems:'center',justifyContent:'center'},vazioTexto:{fontSize:18,color:'#5B6B7C',textAlign:'center',lineHeight:26},botaoAdicionar:{backgroundColor:'#1E3A5F',paddingVertical:18,borderRadius:18,alignItems:'center',marginBottom:10},botaoFacil:{paddingVertical:22},botaoAdicionarTexto:{color:'#FFF',fontSize:20,fontWeight:'800'},bannerContainer:{alignItems:'center'},facilText:{fontSize:20},facilNumero:{fontSize:30}});
