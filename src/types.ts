@@ -8,7 +8,11 @@ export interface Medicamento {
   totalDias: number;
   cor: string;
   ativo: boolean;
-  estoque?: number; // quantidade em comprimidos/ml
+  estoque?: number;
+  unidadeEstoque?: string;
+  quantidadePorDose?: number;
+  estoqueMinimo?: number;
+  observacoes?: string;
 }
 
 export interface Tomada {
@@ -17,6 +21,7 @@ export interface Tomada {
   horarioPrevisto: string;
   horarioReal: string | null;
   status: 'pendente' | 'tomado' | 'adiado' | 'perdido';
+  quantidadeConsumida?: number;
 }
 
 export interface EstatisticasAdesao {
@@ -35,10 +40,8 @@ export interface BackupDados {
   tomadas: Tomada[];
 }
 
-/** Modo de operação do app */
 export type AppMode = 'paciente' | 'cuidador' | null;
 
-/** Dados de um cuidador vinculado (salvo no celular do paciente) */
 export interface CuidadorVinculado {
   id: string;
   nome: string;
@@ -46,7 +49,6 @@ export interface CuidadorVinculado {
   vinculadoEm: string;
 }
 
-/** Dados de um paciente vinculado (salvo no celular do cuidador) */
 export interface PacienteVinculado {
   id: string;
   nome: string;
@@ -57,13 +59,13 @@ export interface PacienteVinculado {
   ultimaAtualizacao?: string;
 }
 
-/** Payload enviado via push notification entre paciente e cuidador */
 export interface SyncPayload {
   tipo: 'vinculacao' | 'alerta' | 'status' | 'estoque_baixo';
   pacienteId?: string;
   pacienteNome?: string;
   cuidadorId?: string;
   cuidadorNome?: string;
+  cuidadorToken?: string;
   medicamentoNome?: string;
   dosagem?: string;
   horario?: string;
@@ -71,4 +73,16 @@ export interface SyncPayload {
   vezesAdiado?: number;
   estoqueAtual?: number;
   mensagem?: string;
+}
+
+export interface ProjecaoEstoque {
+  medicamentoId: string;
+  estoqueAtual: number;
+  unidade: string;
+  consumoDiario: number;
+  diasRestantes: number | null;
+  dataEstimadaFim: string | null;
+  estoqueMinimo: number;
+  diasAteEstoqueMinimo: number | null;
+  status: 'normal' | 'atencao' | 'critico' | 'sem_estoque' | 'sem_dados';
 }
