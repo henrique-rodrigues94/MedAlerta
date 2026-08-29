@@ -1,0 +1,53 @@
+name: SDK 57 Release Checks
+
+on:
+  push:
+    branches:
+      - release/production-ready-v2
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: npm
+
+      - name: Install dependencies and regenerate lockfile
+        run: npm install --no-audit --no-fund
+
+      - name: Verify Expo dependencies
+        run: npx expo install --check
+
+      - name: Expo Doctor
+        run: npx expo-doctor
+
+      - name: TypeScript
+        run: npm run typecheck
+
+      - name: Generate native projects
+        run: npx expo prebuild --clean --non-interactive
+
+      - name: Commit regenerated lockfile
+        if: github.event_name == 'push'
+        run: |
+          if git diff --quiet -- package-lock.json; then
+            echo "package-lock.json already current"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package-lock.json
+          git commit -m "chore: regenerate SDK 57 package lockfile"
+          git push
