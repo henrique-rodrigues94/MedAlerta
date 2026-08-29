@@ -1,63 +1,9 @@
 {
   "expo": {
-    "name": "MedAlerta",
-    "slug": "medalerta",
-    "version": "1.1.0",
-    "orientation": "portrait",
-    "icon": "./assets/icon.png",
-    "scheme": "medalerta",
-    "userInterfaceStyle": "automatic",
-    "splash": {
-      "backgroundColor": "#1E3A5F"
-    },
-    "android": {
-      "package": "com.medalerta.app",
-      "versionCode": 2,
-      "minSdkVersion": 24,
-      "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#1E3A5F"
-      },
-      "permissions": [
-        "SCHEDULE_EXACT_ALARM",
-        "USE_FULL_SCREEN_INTENT",
-        "POST_NOTIFICATIONS",
-        "VIBRATE",
-        "CAMERA",
-        "WAKE_LOCK",
-        "com.google.android.gms.permission.AD_ID"
-      ]
-    },
-    "ios": {
-      "bundleIdentifier": "com.medalerta.app",
-      "buildNumber": "2",
-      "infoPlist": {
-        "NSCameraUsageDescription": "Usamos a câmera para você tirar foto da caixa/cartela do remédio.",
-        "NSPhotoLibraryUsageDescription": "Usamos a galeria para você escolher a foto do remédio.",
-        "UIBackgroundModes": ["audio", "fetch", "remote-notification"]
-      },
-      "entitlements": {
-        "com.apple.developer.usernotifications.critical-alerts": true
-      }
-    },
-    "plugins": [
-      "expo-dev-client",
-      "expo-notifications",
-      [
-        "react-native-google-mobile-ads",
-        {
-          "androidAppId": "ca-app-pub-XXXXXXXXXXXXXXXX~YYYYYYYYYY",
-          "iosAppId": "ca-app-pub-XXXXXXXXXXXXXXXX~ZZZZZZZZZZ"
-        }
-      ],
-      [
-        "expo-image-picker",
-        {
-          "cameraPermission": "Usamos a câmera para fotografar o remédio.",
-          "photosPermission": "Usamos suas fotos para você escolher uma imagem do remédio.",
-          "microphonePermission": false
-        }
-      ]
-    ]
+    "name":"MedAlerta","slug":"medalerta","version":"1.2.0","orientation":"portrait","icon":"./assets/icon.png","scheme":"medalerta","userInterfaceStyle":"automatic",
+    "splash":{"backgroundColor":"#1E3A5F"},
+    "android":{"package":"com.medalerta.app","versionCode":3,"minSdkVersion":24,"adaptiveIcon":{"foregroundImage":"./assets/adaptive-icon.png","backgroundColor":"#1E3A5F"},"permissions":["SCHEDULE_EXACT_ALARM","USE_FULL_SCREEN_INTENT","POST_NOTIFICATIONS","VIBRATE","CAMERA","WAKE_LOCK","com.google.android.gms.permission.AD_ID"]},
+    "ios":{"bundleIdentifier":"com.medalerta.app","buildNumber":"3","infoPlist":{"NSCameraUsageDescription":"Usamos a câmera para você tirar foto da caixa/cartela do remédio.","NSPhotoLibraryUsageDescription":"Usamos a galeria para você escolher a foto do remédio.","UIBackgroundModes":["audio","fetch","remote-notification"]},"entitlements":{"com.apple.developer.usernotifications.critical-alerts":true}},
+    "plugins":["expo-dev-client","expo-notifications",["react-native-google-mobile-ads",{"androidAppId":"ca-app-pub-XXXXXXXXXXXXXXXX~YYYYYYYYYY","iosAppId":"ca-app-pub-XXXXXXXXXXXXXXXX~ZZZZZZZZZZ"}],["expo-image-picker",{"cameraPermission":"Usamos a câmera para fotografar o remédio.","photosPermission":"Usamos suas fotos para você escolher uma imagem do remédio.","microphonePermission":false}]]
   }
 }
